@@ -1,30 +1,96 @@
-import sqlite3
-from datetime import datetime
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
 
-conn = sqlite3.connect('db5.sqlite')
-cursor = conn.cursor()
+# Create engine
+engine = create_engine('sqlite:///database.db', echo=True)  # Change database URL as needed
 
+# Create a base class for our ORM models
+Base = declarative_base()
 
-cursor.execute("CREATE TABLE Students (id int, firstname Varchar(32), lastname Varchar(32), age int, city Varchar(32))")
+# Define User and Post classes
+class User(Base):
+    __tablename__ = 'users'
 
-cursor.executemany("INSERT INTO Students VALUES (?, ?, ?, ?, ?)", [(1, 'Max', 'Brooks', 24, 'Spb'), (2, 'John', 'Stones', 15, 'Spb'), (3, 'Andy', 'Wings', 45, 'Manhester'), (4, 'Kate', 'Brooks', 34, 'Spb')])
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
 
+    posts = relationship('Post', back_populates='author')
 
-cursor.execute("CREATE TABLE Courses (id int, name Varchar(32), date_start date, date_end date)")
+class Post(Base):
+    __tablename__ = 'posts'
 
-cursor.execute("CREATE TABLE Student_courses (student_id int,course_id int)")
+    id = Column(Integer, primary_key=True)
+    title = Column(String)
+    content = Column(String)
+    user_id = Column(Integer, ForeignKey('users.id'))
 
+    author = relationship('User', back_populates='posts')
 
-cursor.executemany("INSERT INTO Courses VALUES (?, ?, ?, ?)", [(1, 'python', '2021-07-21', '2021-08-21'), (2, 'java', '2021-07-13', '2021-08-16')])
+# Create tables in the database
+Base.metadata.create_all(engine)
 
+# Create a sessionmaker
+Session = sessionmaker(bind=engine)
 
-cursor.executemany("INSERT INTO Student_courses VALUES (?, ?)", [(1, 1), (2, 1), (3, 1), (4, 2)])
-conn.commit()
+# Define CRUD functions for User
+def create_user(name):
+    with Session() as session:
+        user = User(name=name)
+        session.add(user)
+        session.commit()
 
-cursor.execute("SELECT * FROM Students WHERE age > 30")
-print(cursor.fetchall())
-cursor.execute("SELECT Students.* FROM Students JOIN Student_courses ON Students.id = Student_courses.student_id JOIN Courses ON Student_courses.course_id = Courses.id WHERE Courses.name = 'python'")
-print(cursor.fetchall())
-cursor.execute("SELECT Students.* FROM Students JOIN Student_courses ON Students.id = Student_courses.student_id JOIN Courses ON Student_courses.course_id = Courses.id WHERE Courses.name = 'python' AND Students.city = 'Spb'")
-print(cursor.fetchall())
-conn.close()
+def get_all_users():
+    with Session() as session:
+        return session.query(User).all()
+
+def get_user_by_id(user_id):
+    with Session() as session:
+        return session.query(User).filter_by(id=user_id).first()
+
+def delete_user(user_id):
+    with Session() as session:
+        user = session.query(User).filter_by(id=user_id).first()
+        if user:
+            session.delete(user)
+            session.commit()
+
+# Define CRUD functions for Post
+def create_post(title, content, user_id):
+    with Session() as session:
+        post = Post(title=title, content=content, user_id=user_id)
+        session.add(post)
+        session.commit()
+
+def get_all_posts():
+    with Session() as session:
+        return session.query(Post).all()
+
+def get_posts_by_user(user_id):
+    with Session() as session:
+        return session.query(Post).filter_by(user_id=user_id).all()
+
+def get_post_by_id(post_id):
+    with Session() as session:
+        return session.query(Post).filter_by(id=post_id).first()
+
+def delete_post(post_id):
+    with Session() as session:
+        post = session.query(Post).filter_by(id=post_id).first()
+        if post:
+            session.delete(post)
+            session.commit()
+
+# Example usage:
+if __name__ == "__main__":
+    create_user("John Doe")
+    create_post("First Post", "This is my first post!", user_id=1)
+
+    print(get_all_users())
+    print(get_all_posts())
+    print(get_posts_by_user(user_id=1))
+    print(get_user_by_id(user_id=1))
+    print(get_post_by_id(post_id=1))
+
+    delete_post(post_id=1)
+    delete_user(user_id=1)
